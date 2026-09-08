@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Descargas y resultados reproducibles del clasificador
+data/embeddings/
+artifacts/

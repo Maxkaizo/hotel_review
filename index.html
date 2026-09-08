@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Guía del proyecto: cómo transformar reseñas de hoteles en entradas para un clasificador LSTM con Word2Vec congelado.">
+  <title>De una reseña a una predicción · Hotel Review</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <style>
+    /* Estilo editorial propio. Diagram Design: paleta clara adaptada. */
+    :root { --paper:#faf9f6; --paper-2:#f1f0eb; --ink:#242424; --muted:#555650; --soft:#71726b; --rule:#deded7; --rule-solid:#aaa99f; --accent:#64543e; --accent-tint:#eee9df; --link:#365c73; --sans:'Geist',system-ui,sans-serif; --serif:'Instrument Serif',Georgia,serif; --mono:'Geist Mono',ui-monospace,monospace; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Georgia,'Times New Roman',serif; font-size:18px; line-height:1.7; }
+    a { color:inherit; text-underline-offset:4px; }
+    a:hover { color:var(--accent); }
+    :focus-visible { outline:2px solid var(--link); outline-offset:5px; }
+    .skip { position:absolute; top:-80px; left:16px; padding:8px 16px; background:var(--paper); z-index:2; }
+    .skip:focus { top:12px; }
+    .wrap { width:min(1120px,calc(100% - 64px)); margin:auto; }
+    .top { text-align:center; padding:24px 0 0; border-bottom:3px double var(--ink); }
+    .brand { display:block; font-family:var(--serif); font-size:36px; letter-spacing:-.02em; text-decoration:none; line-height:1.2; padding:0 0 20px; }
+    nav { display:flex; justify-content:center; flex-wrap:wrap; gap:16px 32px; padding:12px 0; border-top:1px solid var(--rule); font-family:var(--sans); font-size:12px; }
+    nav a { text-decoration:none; }
+    .hero { padding:56px 0 40px; max-width:800px; margin:auto; }
+    .eyebrow { font-family:var(--sans); font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; margin:0 0 20px; }
+    h1 { font-family:var(--serif); font-weight:400; font-size:clamp(44px,6vw,72px); line-height:1.04; letter-spacing:-.025em; margin:0 0 24px; text-wrap:balance; }
+    h1 em { font-weight:400; }
+    .lead { font-size:22px; line-height:1.5; color:var(--muted); margin:0; }
+    .status { display:block; font-family:var(--sans); font-size:11px; color:var(--muted); border-top:1px solid var(--rule); padding-top:16px; margin-top:24px; }
+    section { padding:40px 0 56px; border-top:1px solid var(--ink); scroll-margin-top:24px; }
+    .section-head { display:flex; align-items:baseline; gap:16px; max-width:800px; margin:0 auto 20px; }
+    .number { font-family:var(--mono); font-size:12px; color:var(--muted); }
+    h2 { font-family:var(--serif); font-size:40px; font-weight:400; line-height:1.15; margin:0; text-wrap:balance; }
+    h3 { font-family:var(--sans); font-size:18px; font-weight:600; line-height:1.4; margin:0 0 12px; }
+    p { margin:0 0 16px; }
+    .intro { color:var(--muted); max-width:800px; margin-left:auto; margin-right:auto; }
+    .subsection { max-width:800px; margin:40px auto 0; }
+    .subsection > h3 { padding-top:20px; border-top:1px solid var(--rule); margin-bottom:20px; }
+    figure { margin:28px 0 36px; }
+    .diagram-scroll { overflow-x:auto; padding:16px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); }
+    svg { display:block; width:100%; min-width:880px; height:auto; }
+    svg .node { fill:var(--paper); stroke:var(--rule-solid); stroke-width:1; }
+    svg .focal { fill:var(--accent-tint); stroke:var(--accent); stroke-width:1.2; }
+    svg .name { fill:var(--ink); font-family:var(--sans); font-size:16px; font-weight:600; }
+    svg .sub { fill:var(--muted); font-family:var(--mono); font-size:12px; }
+    svg .note { fill:var(--muted); font-family:var(--sans); font-size:12px; }
+    svg .tag { fill:var(--muted); font-family:var(--mono); font-size:12px; }
+    figcaption { font-family:var(--sans); font-size:12px; line-height:1.6; color:var(--muted); max-width:800px; margin:12px auto 0; }
+    .columns { display:grid; grid-template-columns:1.1fr 1fr; gap:28px; }
+    .columns > :last-child { border-left:1px solid var(--rule); padding-left:28px; }
+    .panel { padding:0; }
+    .panel p:last-child { margin-bottom:0; }
+    .muted { color:var(--muted); }
+    .table-scroll { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; text-align:left; margin:20px 0; font-family:var(--sans); font-size:14px; line-height:1.6; }
+    th,td { border-bottom:1px solid var(--rule); padding:12px 8px; vertical-align:top; }
+    th { font-weight:600; color:var(--ink); font-size:12px; border-top:1px solid var(--ink); }
+    td:first-child { white-space:nowrap; }
+    code { font-family:var(--mono); font-size:.82em; overflow-wrap:anywhere; }
+    .example { display:grid; grid-template-columns:.8fr 1.3fr; gap:32px; margin-top:24px; }
+    .steps { margin:0; padding-left:24px; }
+    .steps li { padding:0 0 16px 8px; }
+    .steps li:last-child { padding-bottom:0; }
+    .steps strong { display:block; margin-bottom:4px; font-family:var(--sans); font-size:15px; font-weight:600; }
+    .steps li::marker { font-family:var(--mono); font-size:12px; color:var(--muted); }
+    .sequence { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+    .token { min-width:36px; padding:4px 8px; text-align:center; border:1px solid var(--rule-solid); font-family:var(--mono); font-size:14px; }
+    .pad { border-style:dashed; color:var(--muted); }
+    .aside { border-left:2px solid var(--ink); padding-left:20px; margin:24px 0; font-style:italic; }
+    details { border-bottom:1px solid var(--rule); padding:16px 0; }
+    summary { cursor:pointer; font-family:var(--sans); font-size:14px; font-weight:500; }
+    details p { margin:16px 0 0; }
+    .deliverable { display:grid; grid-template-columns:1fr 1.2fr; gap:32px; }
+    .deliverable ol { margin:0; padding-left:24px; font-size:16px; }
+    footer { padding:24px 0 40px; color:var(--muted); border-top:3px double var(--ink); font-family:var(--sans); font-size:11px; line-height:1.6; }
+    footer p { margin-bottom:8px; }
+    @media(max-width:700px) { .wrap { width:calc(100% - 32px); } .brand { font-size:28px; } nav { gap:12px 20px; } .hero { padding:36px 0 28px; } .lead { font-size:20px; } section { padding:28px 0 40px; } .columns,.example,.deliverable { grid-template-columns:1fr; gap:20px; } .columns > :last-child { border-left:0; padding-left:0; border-top:1px solid var(--rule); padding-top:20px; } h2 { font-size:32px; } body { font-size:17px; } th,td { padding:12px 8px; } }
+    @media print { .wrap { width:100%; } nav,.skip { display:none; } .hero { padding:24px 0; } h1 { font-size:40px; } svg { min-width:0; } .diagram-scroll { overflow:visible; } .panel,figure { break-inside:avoid; } body { print-color-adjust:exact; -webkit-print-color-adjust:exact; font-size:12pt; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="#contenido">Cuaderno de aprendizaje</a>
+      <nav aria-label="Secciones"><a href="#construccion">01 · Construir y evaluar</a><a href="#prediccion">02 · Clasificar una reseña</a></nav>
+    </header>
+    <main id="contenido">
+      <div class="hero">
+        <p class="eyebrow">Inteligencia artificial / Reseñas de hoteles</p>
+        <h1>Cómo aprende una red<br>a <em>leer una reseña.</em></h1>
+        <p class="lead">Word2Vec representa las palabras. Una LSTM aprende a clasificar las opiniones. Esta guía sigue el proceso, desde los datos hasta una nueva predicción.</p>
+        <span class="status">GUÍA DEL PROYECTO · En planificación · Ejemplos ilustrativos</span>
+      </div>
+
+      <section id="construccion" aria-labelledby="build-heading">
+        <div class="section-head"><span class="number">01</span><h2 id="build-heading">Cómo construiremos y evaluaremos el modelo</h2></div>
+        <p class="intro">Partimos de reseñas etiquetadas. Prepararemos las entradas, aprovecharemos Word2Vec y entrenaremos una red para relacionar el texto con su polaridad. Al terminar, conservaremos todo lo necesario para clasificar nuevas reseñas.</p>
+
+        <figure>
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Diagrama de construcción y evaluación; desplazamiento horizontal disponible">
+            <svg viewBox="0 0 1120 536" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="training-light-title training-light-desc">
+              <title id="training-light-title">Construcción y evaluación del clasificador</title>
+              <desc id="training-light-desc">Las reseñas se dividen y preparan; Word2Vec aporta la matriz congelada, entrenamiento y validación permiten seleccionar el modelo y prueba permite evaluarlo antes de guardar los artefactos.</desc>
+              <defs>
+                <marker id="train-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#555650"/></marker>
+                <marker id="train-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#64543e"/></marker>
+                <marker id="train-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#365c73"/></marker>
+              </defs>
+              <rect width="1120" height="536" fill="#faf9f6"/>
+              <text x="24" y="32" class="tag">DATOS ETIQUETADOS</text>
+              <text x="816" y="32" class="tag">VECTORES PREENTRENADOS</text>
+              <g fill="none" stroke="#555650" stroke-width="1.2" marker-end="url(#train-arrow)">
+                <path d="M 208 112 H 248"/>
+                <path d="M 432 112 H 472"/>
+                <path d="M 520 160 V 352"/>
+                <path d="M 920 160 V 208"/>
+                <path d="M 680 112 H 736 Q 744 112 744 120 V 248 Q 744 256 752 256 H 816"/>
+                <path d="M 920 288 V 304 Q 920 312 912 312 H 616 Q 608 312 608 320 V 352"/>
+                <path d="M 648 400 H 688"/>
+                <path d="M 864 400 H 904"/>
+              </g>
+              <g>
+                <rect x="24" y="64" width="184" height="96" rx="4" class="node"/>
+                <text x="40" y="96" class="name">Explorar el CSV</text><text x="40" y="124" class="sub">text + polarity</text><text x="40" y="148" class="note">Nulos, clases y duplicados.</text>
+                <rect x="248" y="64" width="184" height="96" rx="4" class="node"/>
+                <text x="264" y="96" class="name">Separar los datos</text><text x="264" y="124" class="note">Entrenamiento, validación</text><text x="264" y="148" class="note">y prueba reservada.</text>
+                <rect x="472" y="64" width="208" height="96" rx="4" class="node"/>
+                <text x="488" y="96" class="name">Preparar secuencias</text><text x="488" y="124" class="sub">Tokens → índices → pad</text><text x="488" y="148" class="note">V y L: solo entrenamiento.</text>
+                <rect x="816" y="64" width="280" height="96" rx="4" class="node"/>
+                <text x="832" y="96" class="name">Cargar Word2Vec</text><text x="832" y="124" class="sub">Inglés · D dimensiones</text><text x="832" y="148" class="note">Vectores ya aprendidos.</text>
+                <rect x="816" y="208" width="280" height="80" rx="4" class="focal"/>
+                <text x="832" y="240" class="name">Matriz de embeddings</text><text x="832" y="268" class="sub">V × D · pesos congelados</text>
+                <rect x="472" y="352" width="176" height="96" rx="4" class="focal"/>
+                <text x="488" y="384" class="name">Entrenar y validar</text><text x="488" y="412" class="note">Ajustar LSTM + salida.</text><text x="488" y="436" class="note">Seleccionar el modelo.</text>
+                <rect x="688" y="352" width="176" height="96" rx="4" class="node"/>
+                <text x="704" y="384" class="name">Evaluar en prueba</text><text x="704" y="412" class="note">Métricas y errores.</text><text x="704" y="436" class="note">Sin reajustar pesos.</text>
+                <rect x="904" y="352" width="192" height="96" rx="4" class="node"/>
+                <text x="920" y="384" class="name">Guardar el conjunto</text><text x="920" y="412" class="note">Modelo + vocabulario</text><text x="920" y="436" class="note">+ reglas + longitud L.</text>
+              </g>
+              <text x="24" y="240" class="note">Las secuencias conservan</text><text x="24" y="260" class="note">su conjunto y su etiqueta.</text>
+              <text x="24" y="300" class="note">Validación guía la selección.</text><text x="24" y="320" class="note">Prueba se usa al final.</text>
+              <line x1="24" y1="480" x2="1096" y2="480" stroke="#555650" stroke-opacity=".25"/>
+              <text x="24" y="508" class="note">Flechas: dependencias del proceso.</text><text x="400" y="508" class="note">Tono sombreado: representación congelada y aprendizaje supervisado.</text>
+            </svg>
+          </div>
+          <figcaption>Diagrama general de preparación y construcción. Cada conjunto mantiene su función: entrenamiento ajusta pesos, validación guía la selección y prueba aporta la evaluación final. Las etiquetas acompañan a las secuencias para calcular pérdidas y métricas.</figcaption>
+        </figure>
+      <div class="subsection">
+        <h3>Usar los datos sin mezclar sus funciones</h3>
+        <p class="intro">Exploraremos nulos, clases y duplicados antes de dividir los datos. Usaremos el texto como entrada y <code>polarity</code> como objetivo: positiva = 1 y negativa = 0.</p>
+        <div class="table-scroll"><table><thead><tr><th scope="col">Conjunto</th><th scope="col">Para qué sirve</th><th scope="col">Qué decisiones permite</th></tr></thead><tbody>
+          <tr><td>Entrenamiento</td><td>Aprender a partir de reseñas etiquetadas.</td><td>Construir el vocabulario, elegir longitud máxima y ajustar pesos.</td></tr>
+          <tr><td>Validación</td><td>Observar el desempeño durante el desarrollo.</td><td>Seleccionar el modelo y detener el entrenamiento cuando corresponda.</td></tr>
+          <tr><td>Prueba</td><td>Medir el desempeño final sobre ejemplos reservados.</td><td>Reportar métricas finales; no ajustar decisiones con sus resultados.</td></tr>
+        </tbody></table></div>
+        <p>Definiremos una división estratificada y reproducible, con proporciones por acordar. Revisaremos duplicados para evitar que una misma reseña aparezca en conjuntos distintos. Evaluaremos exactitud, precisión, recall, F1 y matriz de confusión; también examinaremos errores y curvas de entrenamiento.</p>
+        <p class="muted">La columna <code>deceptive</code> describe otra característica del dataset. Nuestra tarea es predecir sentimiento, y no utilizará esa columna como etiqueta. Comentaremos las limitaciones del muestreo al interpretar los resultados.</p>
+      </div>
+        <div class="subsection">
+          <h3>Preprocesar y preparar las entradas</h3>
+          <ol class="steps">
+            <li><strong>Limpiar y tokenizar.</strong>Definiremos reglas compatibles con el Word2Vec en inglés seleccionado. Conservaremos negaciones como <em>not</em> y <em>never</em> y el orden de las palabras.</li>
+            <li><strong>Construir el vocabulario.</strong>Asignaremos un índice por palabra usando solo entrenamiento. Reservaremos índices para relleno y palabras desconocidas.</li>
+            <li><strong>Elegir la longitud máxima.</strong>Revisaremos las longitudes de entrenamiento para elegir <code>L</code>. Usaremos <code>padding='pre'</code> y acordaremos qué extremo recortar en textos largos.</li>
+            <li><strong>Construir la matriz Word2Vec.</strong>Para cada palabra del vocabulario copiaremos su vector a la fila correspondiente. Mediremos la cobertura y definiremos vectores de respaldo para palabras ausentes.</li>
+          </ol>
+        </div>
+      <div class="subsection">
+        <h3>Del dataset a la matriz: dos preparaciones conectadas</h3>
+        <p>Del texto de entrenamiento obtenemos el vocabulario y las secuencias de índices. De Word2Vec obtenemos los vectores. Conectamos ambas piezas colocando el vector de cada palabra en la fila indicada por su índice.</p>
+        <p>Supongamos dos reseñas de entrenamiento: <span lang="en">“the hotel was clean”</span>, positiva, y <span lang="en">“the hotel was dirty”</span>, negativa. Este vocabulario y la longitud de seis posiciones son ilustrativos.</p>
+        <div class="table-scroll"><table>
+          <thead><tr><th scope="col">Entrada del vocabulario</th><th scope="col">Índice</th><th scope="col">Fila en la matriz E</th></tr></thead>
+          <tbody>
+            <tr><td>Relleno</td><td>0</td><td><code>E[0]</code>: vector de ceros; posición enmascarada.</td></tr>
+            <tr><td>Desconocida</td><td>1</td><td><code>E[1]</code>: vector de respaldo por definir.</td></tr>
+            <tr><td>the</td><td>2</td><td><code>E[2]</code>: vector Word2Vec de <code>the</code>.</td></tr>
+            <tr><td>hotel</td><td>3</td><td><code>E[3]</code>: vector Word2Vec de <code>hotel</code>.</td></tr>
+            <tr><td>was</td><td>4</td><td><code>E[4]</code>: vector Word2Vec de <code>was</code>.</td></tr>
+            <tr><td>clean</td><td>5</td><td><code>E[5]</code>: vector Word2Vec de <code>clean</code>.</td></tr>
+            <tr><td>dirty</td><td>6</td><td><code>E[6]</code>: vector Word2Vec de <code>dirty</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Suponiendo que esas palabras estén en Word2Vec y que sus vectores tengan 300 dimensiones, <code>E</code> tendrá forma <code>7 × 300</code>. Para una palabra ausente usaremos el respaldo acordado.</p>
+        <div class="table-scroll"><table>
+          <thead><tr><th scope="col">Reseña</th><th scope="col">Secuencia de entrada</th><th scope="col">Etiqueta aparte</th></tr></thead>
+          <tbody><tr><td lang="en">the hotel was clean</td><td><code>[0, 0, 2, 3, 4, 5]</code></td><td>1 · positiva</td></tr><tr><td lang="en">the hotel was dirty</td><td><code>[0, 0, 2, 3, 4, 6]</code></td><td>0 · negativa</td></tr></tbody>
+        </table></div>
+        <p>Para la primera reseña, Embedding selecciona <code>[E[0], E[0], E[2], E[3], E[4], E[5]]</code>. El resultado es una matriz de <code>6 × 300</code>, con los vectores en el orden del texto. Las etiquetas sirven para calcular el error; no se agregan a los vectores de entrada.</p>
+      </div>
+      <div class="subsection">
+        <h3>Tres tamaños que significan cosas distintas</h3>
+        <p class="intro">El vocabulario cuenta palabras diferentes. La longitud cuenta posiciones en una reseña. La dimensión cuenta los números que representan cada palabra.</p>
+        <div class="table-scroll"><table>
+          <thead><tr><th scope="col">Símbolo</th><th scope="col">Qué representa</th><th scope="col">Cómo lo definiremos</th></tr></thead>
+          <tbody>
+            <tr><td><code>V</code> · Vocabulario</td><td>Número de entradas en nuestra tabla de palabras, incluidos los índices especiales.</td><td>Con las palabras de entrenamiento y un posible límite de frecuencia.</td></tr>
+            <tr><td><code>L</code> · Longitud máxima</td><td>Número de tokens que admite cada reseña. Las cortas se rellenan y las largas se recortan.</td><td>Revisando la distribución de longitudes en entrenamiento.</td></tr>
+            <tr><td><code>D</code> · Dimensión</td><td>Número de componentes del vector de cada palabra.</td><td>Lo determina el Word2Vec preentrenado que seleccionemos.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="columns">
+          <div class="panel"><h3>La matriz de embeddings: V × D</h3><p>Es una tabla compartida por todas las reseñas. Cada fila almacena el vector de una entrada de nuestro vocabulario. La fila de <code>hotel</code> siempre contiene el mismo vector.</p></div>
+          <div class="panel"><h3>Una reseña representada: L × D</h3><p>La capa Embedding selecciona una fila por posición. Con <code>L = 200</code> y <code>D = 300</code>, una reseña produce una matriz de <code>200 × 300</code>. Son valores ilustrativos.</p></div>
+        </div>
+        <p class="aside">Un índice como <code>3</code> solo identifica una palabra. El vector Word2Vec asociado aporta la representación aprendida. Tener un índice mayor no significa ser más positivo.</p>
+      </div>
+      <div class="subsection">
+        <h3>Qué transferimos y qué aprenderá el modelo</h3>
+        <p>Estamos usando <strong>aprendizaje por transferencia (transfer learning)</strong>: aprovechamos representaciones que Word2Vec aprendió de otro corpus. Como mantendremos los embeddings congelados, usamos representaciones preentrenadas fijas; no hacemos <em>fine-tuning</em> de esos vectores. La LSTM y la salida aprenderán con nuestras reseñas.</p>
+        <div class="columns">
+          <div><h3>Word2Vec aporta la representación</h3><p>Sus vectores ya fueron aprendidos en otro conjunto de textos. Cargaremos un modelo en inglés con Gensim y extraeremos los vectores que necesite nuestro vocabulario.</p><p class="muted">La capa Embedding tendrá esos pesos y estará congelada. Los vectores de palabras no cambiarán durante el entrenamiento del clasificador.</p></div>
+          <div><h3>La LSTM aprende la clasificación</h3><p>La LSTM procesa los vectores en orden y construye una representación de la reseña. Una neurona con sigmoid la convierte en una estimación de polaridad positiva.</p><p class="muted">Compararemos esa estimación con la etiqueta real mediante entropía cruzada binaria. El optimizador ajustará los pesos de la LSTM y de la salida para reducir el error.</p></div>
+        </div>
+        <p>La matriz de embeddings representa relaciones entre palabras; no contiene directamente las reglas que clasifican una reseña como positiva o negativa. Incluso palabras opuestas como <em>clean</em> y <em>dirty</em> pueden tener vectores cercanos porque aparecen en contextos similares. Las etiquetas permiten que la LSTM y la salida aprendan los patrones de sentimiento.</p>
+        <p class="aside">Representamos el texto con vectores numéricos y usamos las etiquetas de las reseñas para que la red aprenda a clasificarlas.</p>
+        <p>Por requisito de la tarea, la LSTM tendrá <code>D</code> unidades y <code>dropout=0.2</code>. Igualar unidades y dimensión es una condición de este ejercicio; no es una obligación general de las LSTM.</p>
+        <details><summary>¿Qué significa una salida de 0.87?</summary><p>El modelo estima una probabilidad de 0.87 para la clase positiva. Con un umbral de 0.5, predecimos positiva. Ese valor no garantiza el acierto ni implica por sí solo que la probabilidad esté bien calibrada. Aquí es un ejemplo, no una predicción calculada.</p></details>
+        <details><summary>¿Qué pasa con una palabra desconocida?</summary><p>Hay dos casos: una palabra nueva que no tiene índice en nuestro vocabulario se asignará al índice de desconocida; una palabra con índice pero ausente de Word2Vec necesita un vector de respaldo. Definiremos esa estrategia y mediremos la cobertura. El relleno tendrá su propio índice.</p></details>
+        <details><summary>¿El vocabulario sigue creciendo cuando probamos el modelo?</summary><p>Se fija con entrenamiento. Validación, prueba y reseñas nuevas usan ese mismo mapa. De lo contrario cambiaría la correspondencia entre índices y filas de la matriz de embeddings.</p></details>
+        <details><summary>¿Eliminaremos palabras como “not” y “never”?</summary><p>Las conservaremos: una negación puede cambiar el sentimiento. Evitaremos aplicar automáticamente una limpieza que destruya esa información o altere el orden de las palabras.</p></details>
+      </div>
+        <div class="subsection">
+          <h3>Entender el proceso siguiendo una sola reseña</h3>
+          <ol class="steps">
+            <li><strong>Embedding obtiene los vectores.</strong>Busca en la matriz compartida una fila por posición de la secuencia. Una reseña queda representada por varios vectores de palabras.</li>
+            <li><strong>La LSTM recorre la secuencia.</strong>Recibe el vector de <code>the</code>, luego el de <code>hotel</code>, después <code>was</code> y finalmente <code>clean</code>. En cada paso actualiza su estado interno usando el vector actual y la información acumulada. El relleno se ignora mediante la máscara.</li>
+            <li><strong>La salida produce una predicción por reseña.</strong>Usa la representación final de la LSTM para estimar la polaridad positiva de la reseña completa.</li>
+            <li><strong>Durante entrenamiento calculamos el error.</strong>Comparamos esa predicción con la etiqueta real. Este error contribuye al ajuste de la LSTM y la capa de salida.</li>
+          </ol>
+          <details><summary>¿Dónde entra el batch o lote?</summary><p>El tamaño del batch es un hiperparámetro ajustable que indica cuántas reseñas agrupamos. No cambia el recorrido conceptual dentro de cada reseña. En el entrenamiento habitual, combinamos los errores del lote para realizar una actualización de pesos.</p><p>Por ejemplo, con 32 reseñas, 200 posiciones y embeddings de 300 dimensiones, la entrada de índices tiene forma <code>(32, 200)</code>, la salida de Embedding <code>(32, 200, 300)</code> y la salida final <code>(32, 1)</code>. Son tamaños ilustrativos. Cada reseña mantiene su propio estado dentro del lote.</p></details>
+        </div>
+        <div class="subsection">
+          <h3>Entrenar, valorar y conservar el resultado</h3>
+          <p>Usaremos una red secuencial: <code>Embedding congelado → LSTM(D, dropout=0.2) → Dense(1, sigmoid)</code>. Proponemos Adam y pérdida de entropía cruzada binaria. Validación permitirá observar el sobreajuste y seleccionar cuándo detener el entrenamiento.</p>
+          <p>Con el modelo seleccionado, calcularemos en prueba exactitud, precisión, recall, F1 y matriz de confusión. Revisaremos curvas y ejemplos de errores para redactar conclusiones basadas en resultados reales.</p>
+          <p class="aside">Para reutilizarlo guardaremos el modelo con sus pesos, el vocabulario, las reglas de preprocesamiento, la longitud máxima, el criterio de truncamiento y el umbral de clasificación. La matriz de embeddings queda incluida en los pesos del modelo.</p>
+        </div>
+      <div class="subsection">
+        <h3>El entregable y las decisiones pendientes</h3>
+        <div class="deliverable">
+          <div><h3>Un notebook explicado</h3><p>Avanzaremos por etapas: entender el propósito, resolver dudas, acordar decisiones y revisar la implementación y sus resultados.</p><p class="muted">Esta página documenta el enfoque. La selección de Word2Vec, la longitud máxima, el tamaño del vocabulario y los parámetros de entrenamiento siguen pendientes.</p></div>
+          <ol class="steps"><li>Exploración de los datos.</li><li>Preprocesamiento de textos.</li><li>Vectorización en secuencias de entrada.</li><li>Matriz de embeddings con Word2Vec preentrenado.</li><li>Diseño de la RNN secuencial.</li><li>Entrenamiento y evaluación del clasificador.</li><li>Conclusiones basadas en los resultados obtenidos.</li></ol>
+        </div>
+      </div>
+      </section>
+
+      <section id="prediccion" aria-labelledby="predict-heading">
+        <div class="section-head"><span class="number">02</span><h2 id="predict-heading">Cómo clasificaremos una reseña nueva</h2></div>
+        <p class="intro">Una vez entrenado, cargaremos el modelo y sus reglas guardadas. La reseña nueva recorrerá las mismas transformaciones y obtendrá una predicción. En este momento todos los pesos permanecen fijos y no necesitamos conocer su etiqueta real.</p>
+        <figure>
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Diagrama del modelo; desplazamiento horizontal disponible en pantallas pequeñas">
+            <!-- Architecture / doc-wide, 1120 × 496. Ejemplo: L=6; dimensión D sin fijar. -->
+            <svg viewBox="0 0 1120 496" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="hotel-light-title hotel-light-desc">
+              <title id="hotel-light-title">De texto a clasificación con Word2Vec y LSTM</title>
+              <desc id="hotel-light-desc">La reseña nueva usa las reglas y el vocabulario guardados, pasa por el Embedding, la LSTM entrenada y sigmoid, y se clasifica sin modificar los pesos.</desc>
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#555650"/></marker>
+                <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#64543e"/></marker>
+                <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#365c73"/></marker>
+              </defs>
+              <rect width="1120" height="496" fill="#faf9f6"/>
+              <text x="24" y="32" class="tag">PREPARACIÓN DEL TEXTO</text>
+              <text x="744" y="32" class="tag">RECURSOS GUARDADOS</text>
+              <text x="24" y="252" class="tag">MODELO SECUENCIAL · UNA RESEÑA</text>
+              <g fill="none" stroke="#555650" stroke-width="1.2" marker-end="url(#arrow)">
+                <path d="M 184 112 H 216"/>
+                <path d="M 376 112 H 408"/>
+                <path d="M 508 160 V 184 Q 508 192 500 192 H 116 Q 108 192 108 200 V 276"/>
+                <path d="M 248 324 H 288"/>
+                <path d="M 488 324 H 528"/>
+                <path d="M 728 324 H 768"/>
+                <path d="M 864 172 V 212 Q 864 220 856 220 H 188 Q 180 220 180 228 V 276"/>
+              </g>
+              <g>
+                <rect x="24" y="64" width="160" height="96" rx="4" class="node"/>
+                <text x="40" y="96" class="name">Reseña</text><text x="40" y="124" class="sub">Texto en inglés</text>
+                <rect x="216" y="64" width="160" height="96" rx="4" class="node"/>
+                <text x="232" y="96" class="name">Tokenización</text><text x="232" y="124" class="sub">Lista de tokens</text>
+                <rect x="408" y="64" width="200" height="96" rx="4" class="node"/>
+                <text x="424" y="96" class="name">Índices + padding</text><text x="424" y="124" class="sub">[0, 0, 2, 3, 4, 5]</text>
+                <rect x="744" y="64" width="320" height="108" rx="4" fill="#f1f0eb" stroke="#555650" stroke-dasharray="4,4"/>
+                <text x="760" y="96" class="name">Matriz Word2Vec ya guardada</text>
+                <text x="760" y="124" class="sub">V filas × D dimensiones</text>
+                <text x="760" y="148" class="note">Incluida en el modelo entrenado.</text>
+                <rect x="24" y="276" width="224" height="96" rx="4" class="focal"/>
+                <text x="40" y="308" class="name">Embedding congelado</text><text x="40" y="336" class="sub">6 índices → 6 × D</text><text x="40" y="356" class="note">Busca vectores; no se ajusta.</text>
+                <rect x="288" y="276" width="200" height="96" rx="4" class="focal"/>
+                <text x="304" y="308" class="name">LSTM entrenada</text><text x="304" y="336" class="sub">units=D · dropout=0.2</text><text x="304" y="356" class="note">Pesos fijos al predecir.</text>
+                <rect x="528" y="276" width="200" height="96" rx="4" class="node"/>
+                <text x="544" y="308" class="name">Salida entrenada</text><text x="544" y="336" class="sub">Dense(1) · sigmoid</text><text x="544" y="356" class="note">Valor entre 0 y 1.</text>
+                <rect x="768" y="276" width="296" height="96" rx="4" class="node"/>
+                <text x="784" y="308" class="name">Predicción</text><text x="784" y="336" class="sub">p ≥ 0.5 → positiva</text><text x="784" y="356" class="sub">p &lt; 0.5 → negativa</text>
+              </g>
+              <line x1="24" y1="412" x2="1096" y2="412" stroke="#555650" stroke-opacity=".25"/>
+              <text x="24" y="440" class="note">Flechas: datos o pesos hacia su destino.</text>
+              <text x="400" y="440" class="note">Tono sombreado: capas centrales de la tarea.</text>
+              <text x="24" y="468" class="note">L = 6 solo para ilustrar · V incluye relleno y desconocidas · D depende del Word2Vec elegido.</text>
+            </svg>
+          </div>
+          <figcaption>Lee primero la fila superior y luego la inferior, de izquierda a derecha. La tabla de índices, la longitud y los pesos se reutilizan tal como quedaron guardados. La matriz Word2Vec ya forma parte del modelo: no necesitamos volver a descargarla. No hay ajuste de pesos durante este recorrido.</figcaption>
+        </figure>
+
+      <div class="subsection">
+        <h3>Ejemplo: una reseña nueva paso a paso</h3>
+        <p class="intro">Usaremos una longitud de seis posiciones para ver el relleno. Este vocabulario es inventado para explicar la transformación.</p>
+        <div class="example">
+          <div class="panel"><h3>Nuestro vocabulario de ejemplo</h3><table><thead><tr><th scope="col">Entrada</th><th scope="col">Índice</th></tr></thead><tbody><tr><td>Relleno</td><td>0</td></tr><tr><td>Desconocida</td><td>1</td></tr><tr><td>the</td><td>2</td></tr><tr><td>hotel</td><td>3</td></tr><tr><td>was</td><td>4</td></tr><tr><td>clean</td><td>5</td></tr></tbody></table></div>
+          <div>
+            <ol class="steps">
+              <li><strong>Texto original</strong><span lang="en">“The hotel was clean”</span></li>
+              <li><strong>Tokens normalizados</strong><code>[the, hotel, was, clean]</code><p class="muted">La política de mayúsculas se ajustará al Word2Vec elegido.</p></li>
+              <li><strong>Secuencia de índices</strong><code>[2, 3, 4, 5]</code></li>
+              <li><strong>Relleno al inicio · padding='pre'</strong><div class="sequence" aria-label="Secuencia: cero, cero, dos, tres, cuatro, cinco"><span class="token pad">0</span><span class="token pad">0</span><span class="token">2</span><span class="token">3</span><span class="token">4</span><span class="token">5</span></div><span class="muted">Configuraremos el enmascaramiento para que la LSTM ignore el relleno.</span></li>
+              <li><strong>Vectores para la LSTM</strong>Embedding busca <code>[E[0], E[0], E[2], E[3], E[4], E[5]]</code> en la matriz guardada. Cada posición contiene un vector de <code>D</code> números. El resultado tiene forma <code>6 × D</code>.</li>
+              <li><strong>Recorrido de una reseña</strong>La LSTM procesa un vector de palabra por paso, en orden, actualizando su estado interno. Ignora las posiciones de relleno enmascaradas. La representación final pasa a la neurona de salida y obtenemos una clasificación para la reseña completa.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+        <div class="subsection">
+          <h3>Interpretar la salida</h3>
+          <p>Si el modelo produjera <code>0.87</code>, con umbral de <code>0.5</code> devolveríamos <strong>positiva</strong>. Una salida menor que <code>0.5</code> devolvería <strong>negativa</strong>. El 0.87 es ilustrativo: todavía no hemos entrenado ni ejecutado el clasificador.</p>
+          <p>La probabilidad estimada no garantiza el acierto. Para medir el desempeño de nuevas reseñas necesitaríamos obtener sus etiquetas reales y compararlas con las predicciones.</p>
+          <p class="aside">Una palabra nueva se asigna al índice de desconocida. El vocabulario permanece fijo, la LSTM conserva sus pesos y el dropout se desactiva en inferencia. Clasificar una nueva reseña no vuelve a entrenar el modelo.</p>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <p>HOTEL REVIEW · WORD2VEC + LSTM · PROYECTO DE APRENDIZAJE</p>
+      <p><a href="plan.md">Plan de trabajo</a> · <a href="references/Word_embeddings_Word2Vec_español.ipynb">Libreta de referencia</a></p>
+      <p>Dataset: deceptive-opinion.csv, carpeta Datos del repositorio AnIsAsPe/LogisticRegression_SpamOpinion.</p>
+      <p>Diagramas: Diagram Design · Paleta clara editorial · Tipografía con fuentes de respaldo para lectura sin conexión.</p>
+    </footer>
+  </div>
+</body>
+</html>
