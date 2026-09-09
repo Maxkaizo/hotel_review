@@ -46,3 +46,22 @@ Las analogías, visualizaciones 3D y recorridos manuales de todo el vocabulario 
 - Embeddings congelados, LSTM con dropout 0.2, salida sigmoid y entropía cruzada binaria.
 - Validación para detención temprana; prueba reservada para métricas finales.
 - Las métricas y conclusiones numéricas requieren ejecutar el entrenamiento completo: no se presuponen resultados.
+
+## Acompañamiento y trabajo posterior
+
+- Mantener [acompanamiento.md](acompanamiento.md) como documento vivo de explicación,
+  justificación de decisiones, evidencia y asuntos pendientes.
+- Decisión confirmada: Google News Word2Vec en inglés, descargado con Gensim usando
+  `return_path=True` y guardado en `data/embeddings/word2vec-google-news-300/`.
+- Reutilizar el archivo local verificado sin consultar la red; cargar, filtrar y
+  guardar matriz compacta y vocabulario. Liberar Word2Vec completo de RAM sin borrar
+  su archivo en disco ni las reseñas necesarias para entrenar y evaluar.
+- Terminar la primera versión local antes de generar variantes de Colab CPU y GPU.
+- Conservar `padding='pre'` en el entregable. Añadir un anexo de rendimiento en la
+  misma GPU: pre nativo, post nativo como control y post con cuDNN exigido. Medir
+  pasos fijos tras calentamiento, sin modificar el modelo principal ni ajustar con prueba.
+- Validación previa completada en `validacion_gpu_tensorflow.ipynb`: operación,
+  gradientes y entrenamiento MNIST en RTX 3070 Ti; pruebas pequeñas de las tres
+  rutas LSTM correctas. No equivale a entrenar el clasificador de reseñas.
+- Idea futura, sin iniciar: convertir el acompañamiento en un artículo how-to o
+  write-up, posiblemente HTML editorial, una vez obtenidos los resultados.
