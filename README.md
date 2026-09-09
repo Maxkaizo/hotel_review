@@ -19,6 +19,16 @@ Ejecuta las celdas en orden. Las dependencias se declaran en `pyproject.toml`;
 Si una terminal que ya estaba abierta no encuentra uv, abre otra terminal o usa
 `/home/maxkaizo/.local/bin/uv` en este equipo.
 
+## Versión para Google Colab
+
+Sube `clasificador_resenas_hoteles_colab.ipynb` a Colab y ejecuta las celdas en
+orden desde una sesión nueva (CPU o GPU, no TPU). No requiere uv ni el repositorio.
+Instala Gensim, reutiliza TensorFlow de Colab y lee Google News por partes para
+guardar solo los vectores necesarios en RAM. Mantiene la arquitectura y padding
+previo de la tarea. `USE_DRIVE = True` permite conservar descargas y resultados
+entre sesiones; por defecto se guardan solo en la sesión actual. La última celda
+descarga un ZIP de resultados. Las salidas locales no se copian a esta versión.
+
 ## Datos y recursos
 
 - CSV local: `data/deceptive-opinion.csv`; si falta, el notebook descarga la fuente de la tarea.
@@ -34,36 +44,13 @@ El modelo usa entrenamiento/validación/prueba separados y verifica que los embe
 no cambien y que la recarga conserve predicciones. Para reutilizarlo, la función de
 tokenización de la sección 2 debe acompañar a las reglas guardadas.
 
-## Validación de GPU
-
-Abre `validacion_gpu_tensorflow.ipynb` con un kernel nuevo. Comprueba una operación
-real, gradientes y entrenamiento de un clasificador MNIST pequeño en GPU. También
-incluye pruebas independientes de LSTM nativa y cuDNN, sin necesitar Word2Vec.
-MNIST se descarga una vez en `.cache/keras/`. El informe se guarda en
-`artifacts/gpu_validation/result.json`.
-
-Para ejecutarla desde la terminal:
-
-```bash
-uv run python scripts/execute_notebook.py --notebook validacion_gpu_tensorflow.ipynb
-```
-
-## Experimento adicional de padding
-
-El anexo A de la libreta compara `pre` nativo, `post` nativo y `post` con cuDNN en
-la misma GPU. El entrenamiento y la evaluación principales mantienen `pre`, como
-exige la tarea. El anexo usa modelos descartables con pesos iniciales comunes,
-calentamiento y tres repeticiones de pasos fijos de entrenamiento; no compara
-exactitud tras convergencia. Registra los resultados en `artifacts/padding_comparison/`.
-Si no hay GPU o cuDNN falla, lo informa sin fabricar una aceleración. Puede omitirse
-con `RUN_PADDING_EXPERIMENT = False` en su primera celda.
-
 ## Guía visual
 
-El [documento de acompañamiento](acompanamiento.md) registra la explicación y
-justificación de decisiones, empezando por la elección de Word2Vec Google News
-y la descarga con Gensim a una caché local reutilizable. Servirá como base de un posible artículo
-al terminar el experimento; su formato final todavía no está decidido.
+La libreta principal contiene las instrucciones de ejecución, la justificación de
+las decisiones, los resultados y las limitaciones en sus propias celdas Markdown.
+También incluye instrucciones para ejecutarla fuera del repositorio; requiere
+instalar las dependencias y disponer de red para la primera descarga de los datos.
+La guía visual es complementaria y no es necesaria para entender el entregable.
 
 Abre `index.html` o ejecuta `python3 -m http.server 8000 --bind 127.0.0.1`
 y visita `http://localhost:8000`.
